@@ -15,7 +15,13 @@ const clerkWebhooks = async (req, res) => {
     };
 
     // Verifying Headers
-    await whook.verify(json(req.body), headers);
+    try {
+      await whook.verify(JSON.stringify(req.body), headers);
+      console.log("Webhook verified successfully");
+    } catch (verifyError) {
+      console.error("Webhook verification failed:", verifyError.message);
+      throw verifyError;
+    }
 
     //Getting Data from request Body
 
@@ -26,7 +32,10 @@ const clerkWebhooks = async (req, res) => {
       username: data.first_name + " " + data.last_name,
       email: data.email_addresses[0].email_address,
       image: data.image_url,
+      recentSearchedCities: [],
     };
+
+     console.log("userData:", userData); 
 
     //Switch case to handle different webhook events
     switch (type) {
