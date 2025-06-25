@@ -55,10 +55,12 @@ export const createBooking = async (req, res) => {
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
     const timeDiff = checkOut.getTime() - checkIn.getTime();
-    const nights = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    let nights = Math.floor(timeDiff / (1000 * 3600 * 24)); // Use Math.floor to avoid rounding up
+    if (nights === 0 && checkOut > checkIn) nights = 1; // Ensure at least 1 night for valid range
+    console.log("pricePerNight:", roomData.pricePerNight, "nights:", nights, "totalPrice:", totalPrice * nights);
     totalPrice *= nights;
 
-    // Before Booking Check Availability (redundant, already checked above)
+    // Create Booking
     const booking = await Booking.create({
       user,
       room,
