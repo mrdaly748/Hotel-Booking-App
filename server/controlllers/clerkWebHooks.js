@@ -1,64 +1,68 @@
-import { json } from "express";
-import User from "../models/User.js";
+import User from "../models/User.js"; 
 import { Webhook } from "svix";
 
 const clerkWebhooks = async (req, res) => {
   try {
-    // Create a Svix instance with clerk webhook secret.
+    // Create a Svix instance with clerk webhook secret
     const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
 
-    // Getting Headers
+    // Get Headers
     const headers = {
       "svix-id": req.headers["svix-id"],
       "svix-timestamp": req.headers["svix-timestamp"],
       "svix-signature": req.headers["svix-signature"],
     };
 
-    // Verifying Headers
+    // Verify Headers
+    let verifiedData;
     try {
-      await whook.verify(JSON.stringify(req.body), headers);
+      verifiedData = await whook.verify(JSON.stringify(req.body), headers);
       console.log("Webhook verified successfully");
     } catch (verifyError) {
       console.error("Webhook verification failed:", verifyError.message);
-      throw verifyError;
+      return res.status(400).json({
+        success: false,
+        message: "Webhook verification failed",
+        error: verifyError.message,
+      });
     }
 
-    //Getting Data from request Body
+    // Get Data from request Body
+    const { data, type } = verifiedData;
 
-    const { data, type } = req.body;
-
-    const userData = {
-      _id: data.id,
-      username: data.first_name + " " + data.last_name,
-      email: data.email_addresses[0].email_address,
-      image: data.image_url,
-      recentSearchedCities: [],
-    };
-
-     console.log("userData:", userData); 
-
-    //Switch case to handle different webhook events
+    // Prepare user data based on event type
+    let userData;
     switch (type) {
       case "user.created":
-        // Create a new user in the database
-        await User.create(userData);
-        break;
       case "user.updated":
-        // Update the existing user in the database
-        await User.findByIdAndUpdate(data.id, userData);
+        userData = {
+          _id: data.id,
+          username: (data.first_name || "") + " " + (data.last_name || ""),
+          email: data.email_addresses?.[0]?.email_address || "",
+          image: data.image_url || "",
+          recentSearchedCities: [],
+        };
+        if (type === "user.created") {
+          await User.create(userData);
+        } else {
+          await User.findByIdAndUpdate(data.id, userData, { new: true, runValidators: true });
+        }
         break;
       case "user.deleted":
-        // Delete the user from the database
         await User.findByIdAndDelete(data.id);
         break;
       default:
         console.log("Unhandled event type:", type);
+        return res.status(400).json({
+          success: false,
+          message: `Unhandled event type: ${type}`,
+        });
     }
+
     res.json({ success: true, message: "Webhook processed successfully" });
   } catch (error) {
-    // Handle error
-    console.log(error.message);
-    res.json({
+    console.error("Webhook processing error:", error.message);
+    res.status(500).json({
       success: false,
       message: "Webhook processing failed",
       error: error.message,
