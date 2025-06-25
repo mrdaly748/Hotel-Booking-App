@@ -1,6 +1,7 @@
 import Booking from "../models/Booking.js";
 import Room from "../models/Room.js";
 import Hotel from "../models/Hotel.js";
+import stripe from "stripe";
 
 // Function to check Availability of a Room
 const checkAvailability = async (room, checkInDate, checkOutDate) => {
@@ -55,8 +56,8 @@ export const createBooking = async (req, res) => {
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
     const timeDiff = checkOut.getTime() - checkIn.getTime();
-    let nights = Math.floor(timeDiff / (1000 * 3600 * 24)); // Use Math.floor to avoid rounding up
-    if (nights === 0 && checkOut > checkIn) nights = 1; // Ensure at least 1 night for valid range
+    let nights = Math.floor(timeDiff / (1000 * 3600 * 24));
+    if (nights === 0 && checkOut > checkIn) nights = 1;
     console.log("pricePerNight:", roomData.pricePerNight, "nights:", nights, "totalPrice:", totalPrice * nights);
     totalPrice *= nights;
 
@@ -114,5 +115,64 @@ export const getHotelBookings = async (req, res) => {
     });
   } catch (error) {
     res.json({ success: false, message: "Failed to fetch bookings" });
+  }
+};
+
+export const stripePayment = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+
+    // Fetch the booking
+    const booking = await Booking.findById(bookingId).populate("room");
+    if (!booking) {
+      return res.json({ success: false, message: "Booking not found" });
+    }
+
+    const roomData = booking.room;
+    const totalPrice = booking.totalPrice;
+    const { origin } = req.headers;
+
+    if (!origin) {
+      return res.json({ success: false, message: "Origin header missing" });
+    }
+
+    const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY, {
+    });
+
+    console.log("Creating session with:", { totalPrice, roomData, origin });
+
+    const line_items = [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: roomData.hotel.name || "Hotel Room",
+          },
+          unit_amount: Math.round(totalPrice * 100), // Ensure integer cents
+        },
+        quantity: 1,
+      },
+    ];
+
+    // Create a checkout session
+    const session = await stripeInstance.checkout.sessions.create({
+      line_items,
+      mode: "payment",
+      success_url: `${origin}/loader/my-bookings`,
+      cancel_url: `${origin}/my-bookings`,
+      metadata: {
+        bookingId,
+      },
+    });
+
+    console.log("Session created:", session.url);
+    res.json({ success: true, url: session.url });
+  } catch (error) {
+    console.error("Stripe Error:", error.message, error.stack);
+    res.json({
+      success: false,
+      message: "Failed to create payment session",
+      error: error.message,
+    });
   }
 };
