@@ -12,7 +12,9 @@ import bookingRouter from "./routes/bookingRoute.js";
 import { stripeWebhooks } from "./controlllers/stripeWebhooks.js";
 
 
-
+connectDB().catch((error) => {
+  console.error("Failed to start server due to database error:", error);
+});
 connectCloudinary()
 
 const app = express();
