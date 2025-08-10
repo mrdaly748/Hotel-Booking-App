@@ -13,21 +13,21 @@ import { stripeWebhooks } from "./controlllers/stripeWebhooks.js";
 
 const app = express();
 
-// Explicit CORS configuration for deployed frontend
+// Explicit CORS configuration - apply before any routes or middleware
 app.use(cors({
-  origin: ['https://quickstay-one-rho.vercel.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
+  origin: ['https://quickstay-one-rho.vercel.app'], // Allow your frontend origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Handle preflight methods
+  allowedHeaders: ['Content-Type', 'Authorization'], // Allow token header
+  credentials: true, // If cookies or auth credentials are needed
 }));
 
-// API to listen to stripe webhooks (before clerkMiddleware)
+// Stripe webhook (raw body, before json parser)
 app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhooks);
 
-// Parse JSON bodies
+// JSON body parser for other routes
 app.use(express.json());
 
-// Webhook route (no clerkMiddleware needed)
+// Webhook route (no clerkMiddleware)
 app.use("/api/clerk", clerkWebhooks);
 
 // Protected routes with clerkMiddleware
@@ -43,13 +43,13 @@ app.use("/api/bookings", bookingRouter);
 // Connect to database and Cloudinary
 const startServer = async () => {
   try {
-    await connectDB(); // Ensure database is connected first
-    await connectCloudinary(); // Then configure Cloudinary
+    await connectDB(); // Database first
+    await connectCloudinary(); // Cloudinary second
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (error) {
     console.error("Failed to start server:", error.message);
-    process.exit(1); // Exit on failure, Vercel will handle restart
+    process.exit(1);
   }
 };
 
@@ -57,5 +57,5 @@ startServer().catch((error) => {
   console.error("Server startup failed:", error.message);
 });
 
-
+// Export for Vercel serverless
 export default app;
