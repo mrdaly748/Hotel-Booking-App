@@ -11,46 +11,41 @@ import roomRouter from "./routes/roomRoute.js";
 import bookingRouter from "./routes/bookingRoute.js";
 import { stripeWebhooks } from "./controlllers/stripeWebhooks.js";
 
-
-connectDB().catch((error) => {
-  console.error("Failed to start server due to database error:", error);
-});
-connectCloudinary()
+connectCloudinary();
 
 const app = express();
 app.use(cors());
 
-//API to listen to stripe webhooks
-app.post('/api/stripe',express.raw({type: "application/json"}),stripeWebhooks)
+// Stripe webhook (must be raw)
+app.post("/api/stripe", express.raw({ type: "application/json" }), stripeWebhooks);
 
+// JSON middleware after stripe raw
 app.use(express.json());
 
-
-// Webhook route (no clerkMiddleware needed)
+// Clerk webhook (no auth needed)
 app.use("/api/clerk", clerkWebhooks);
 
-// Protected routes (if any)
+// Clerk middleware for protected routes
 app.use(clerkMiddleware());
 
+// Routes
 app.get("/", (req, res) => res.send("API is working!"));
-app.use("/api/user", userRouter)
-app.use("/api/hotels",hotelRouter)
-app.use("/api/rooms",roomRouter)
-app.use("/api/bookings" ,bookingRouter)
-
+app.use("/api/user", userRouter);
+app.use("/api/hotels", hotelRouter);
+app.use("/api/rooms", roomRouter);
+app.use("/api/bookings", bookingRouter);
 
 const PORT = process.env.PORT || 3000;
 
-const startServer = async () => {
-  try {
-    await connectDB();
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-  } catch (error) {
-    console.error("Failed to start server:", error.message);
+// Local dev: connect and start server
+if (process.env.NODE_ENV !== "production") {
+  connectDB().then(() => {
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  }).catch((err) => {
+    console.error("❌ Failed to connect to DB:", err.message);
     process.exit(1);
-  }
-};
+  });
+}
 
-startServer();
-
+// In Vercel, `connectDB()` will be called inside each request handler (first call cached)
 export default app;
