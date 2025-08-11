@@ -13,38 +13,56 @@ import { stripeWebhooks } from "./controlllers/stripeWebhooks.js";
 
 const app = express();
 
-// Explicit CORS configuration - apply before any routes or middleware
-app.use(cors({
-  origin: ['https://quickstay-one-rho.vercel.app'], // Allow your frontend origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Handle preflight methods
-  allowedHeaders: ['Content-Type', 'Authorization'], // Allow token header
-  credentials: true, // If cookies or auth credentials are needed
-}));
+// ✅ Allowed origins for CORS
+const allowedOrigins = [
+  "http://localhost:3000", // Local dev
+  "https://quickstay-one-rho.vercel.app" // Production frontend
+];
 
-// Stripe webhook (raw body, before json parser)
-app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhooks);
+// ✅ Manual CORS middleware to handle OPTIONS preflight requests
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
-// JSON body parser for other routes
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// ✅ Stripe webhook must come before express.json()
+app.post(
+  "/api/stripe",
+  express.raw({ type: "application/json" }),
+  stripeWebhooks
+);
+
+// ✅ JSON body parser for other routes
 app.use(express.json());
 
-// Webhook route (no clerkMiddleware)
+// ✅ Webhook route (no Clerk middleware here)
 app.use("/api/clerk", clerkWebhooks);
 
-// Protected routes with clerkMiddleware
+// ✅ Apply Clerk middleware for protected routes
 app.use(clerkMiddleware());
 
-// API routes
+// ✅ API routes
 app.get("/", (req, res) => res.send("API is working!"));
 app.use("/api/user", userRouter);
 app.use("/api/hotels", hotelRouter);
 app.use("/api/rooms", roomRouter);
 app.use("/api/bookings", bookingRouter);
 
-// Connect to database and Cloudinary
+// ✅ Start server
 const startServer = async () => {
   try {
-    await connectDB(); // Database first
-    await connectCloudinary(); // Cloudinary second
+    await connectDB();
+    await connectCloudinary();
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
   } catch (error) {
@@ -57,5 +75,5 @@ startServer().catch((error) => {
   console.error("Server startup failed:", error.message);
 });
 
-// Export for Vercel serverless
+// ✅ Export for Vercel serverless functions
 export default app;
