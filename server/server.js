@@ -13,67 +13,49 @@ import { stripeWebhooks } from "./controlllers/stripeWebhooks.js";
 
 const app = express();
 
-// ✅ Allowed origins for CORS
-const allowedOrigins = [
-  "http://localhost:3000", // Local dev
-  "https://quickstay-one-rho.vercel.app" // Production frontend
-];
+// Explicit CORS configuration
+app.use(cors({
+  origin: ['https://quickstay-one-rho.vercel.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
 
-// ✅ Manual CORS middleware to handle OPTIONS preflight requests
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
+// Stripe webhook
+app.post('/api/stripe', express.raw({ type: 'application/json' }), stripeWebhooks);
 
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// ✅ Stripe webhook must come before express.json()
-app.post(
-  "/api/stripe",
-  express.raw({ type: "application/json" }),
-  stripeWebhooks
-);
-
-// ✅ JSON body parser for other routes
 app.use(express.json());
 
-// ✅ Webhook route (no Clerk middleware here)
+// Webhook route
 app.use("/api/clerk", clerkWebhooks);
 
-// ✅ Apply Clerk middleware for protected routes
+// Protected routes
 app.use(clerkMiddleware());
 
-// ✅ API routes
 app.get("/", (req, res) => res.send("API is working!"));
 app.use("/api/user", userRouter);
 app.use("/api/hotels", hotelRouter);
 app.use("/api/rooms", roomRouter);
 app.use("/api/bookings", bookingRouter);
 
-// ✅ Start server
-const startServer = async () => {
+// Fallback route
+app.get('*', (req, res) => res.status(500).json({ error: 'Server error' }));
+
+// Initialize services asynchronously
+const initializeServices = async () => {
   try {
     await connectDB();
+    console.log("Database connected successfully");
     await connectCloudinary();
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(Server is running on port ${PORT}));
+    console.log("Cloudinary connected successfully");
   } catch (error) {
-    console.error("Failed to start server:", error.message);
-    process.exit(1);
+    console.error("Service initialization failed:", error.message);
+    // Continue without crashing, Vercel will handle the error
   }
 };
 
-startServer().catch((error) => {
-  console.error("Server startup failed:", error.message);
-});
+// Start services on function load
+initializeServices();
 
-// ✅ Export for Vercel serverless functions
+// Export for Vercel serverless
 export default app;
