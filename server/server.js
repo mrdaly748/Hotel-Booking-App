@@ -40,22 +40,13 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
     await connectDB();
-    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+    app.listen(PORT, () => console.log(Server is running on port ${PORT}));
   } catch (error) {
     console.error("Failed to start server:", error.message);
-// Local dev: connect and start server
-if (process.env.NODE_ENV !== "production") {
-  connectDB().then(() => {
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-  }).catch((err) => {
-    console.error("❌ Failed to connect to DB:", err.message);
     process.exit(1);
   }
 };
 
 startServer();
-  });
-}
 
-// In Vercel, `connectDB()` will be called inside each request handler (first call cached)
 export default app;
